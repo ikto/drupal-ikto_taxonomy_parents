@@ -1,0 +1,53 @@
+<?php
+
+define('IKTO_TAXONOMY_PARENTS_STATIC_KEY', 'ikto_taxonomy_parents_parents');
+
+/**
+ * Implements hook_taxonomy_term_load().
+ */
+function ikto_taxonomy_parents_taxonomy_term_load($terms) {
+  static $drupal_static_fast;
+  if (!isset($drupal_static_fast)) {
+    $drupal_static_fast['parents'] = &drupal_static(IKTO_TAXONOMY_PARENTS_STATIC_KEY);
+  }
+  $parents = &$drupal_static_fast['parents'];
+
+  $db_type = Database::getConnection()->databaseType();
+
+  $query = db_select('taxonomy_term_hierarchy', 'h');
+  $query->addField('h', 'tid');
+  switch ($db_type) {
+    case 'mysql':
+      $query->addExpression('GROUP_CONCAT(DISTINCT h.parent)', 'parents');
+      break;
+    case 'pgsql':
+      // Requires at least PostgreSQL 9.0
+      $query->addExpression('STRING_AGG(h.parent, \',\')', 'parents');
+      break;
+    default:
+      throw new Exception(t('Unsupported database type: @db_type', array('@db_type' => $db_type)));
+  }
+  $query->condition('h.tid', array_keys($terms), 'IN');
+  $query->groupBy('h.tid');
+  $result = $query->execute();
+
+  while ($row = $result->fetchAssoc()) {
+    $parent_tids = explode(',', $row['parents']);
+    $parent_tids = array_unique($parent_tids);
+    $parents[$row['tid']] = $parent_tids;
+  }
+}
+
+function ikto_taxonomy_parents_get_parents($tid) {
+  static $drupal_static_fast;
+  if (!isset($drupal_static_fast)) {
+    $drupal_static_fast['parents'] = &drupal_static(IKTO_TAXONOMY_PARENTS_STATIC_KEY);
+  }
+  $parents = &$drupal_static_fast['parents'];
+
+  if (array_key_exists($tid, $parents)) {
+    return $parents[$tid];
+  }
+
+  return array();
+}

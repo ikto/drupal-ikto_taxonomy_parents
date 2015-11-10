@@ -1,0 +1,6 @@
+name = IKTO Taxonomy Parents
+description = Unility module to automatically get term parents on term load
+core = 7.x
+package = Taxonomy
+
+dependencies[] = taxonomy
